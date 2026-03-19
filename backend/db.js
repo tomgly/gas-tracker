@@ -1,7 +1,9 @@
+import path from "path";
 import sqlite3 from "sqlite3";
 
 // DB接続
-const db = new sqlite3.Database("../data/gas_prices.db");
+const dbPath = path.resolve("data/gas_prices.db");
+const db = new sqlite3.Database(dbPath);
 
 // 現在のローカル時間を取得する関数
 function getLocalTime() {
