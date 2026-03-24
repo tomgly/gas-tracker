@@ -211,6 +211,7 @@ main {
 
 .rec-banner.buy  { background: var(--red-dim);   border-color: rgba(244,96,96,0.2); }
 .rec-banner.wait { background: var(--green-dim);  border-color: rgba(62,207,142,0.2); }
+.rec-banner.error { background: var(--red-dim); border-color: rgba(244,96,96,0.2); }
 
 .rec-left {
   display: flex;
@@ -232,6 +233,7 @@ main {
 
 .rec-banner.buy  .rec-badge { background: rgba(244,96,96,0.18);  color: var(--red); }
 .rec-banner.wait .rec-badge { background: rgba(62,207,142,0.18); color: var(--green); }
+.rec-banner.error .rec-badge { background: rgba(244,96,96,0.18); color: var(--red); }
 
 .rec-desc {
   font-size: 0.78rem;

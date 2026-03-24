@@ -5,7 +5,7 @@ import { fmtPrice, fmtDelta, fmtUpdated } from "./calc.js";
 export const COLORS = ["#f4a038", "#4e9af4", "#3ecf8e", "#c084fc"];
 
 // Top stat cards: avg, min, max
-export function renderStats(stats) {
+export function renderStats(stats, prediction) {
   document.getElementById("avg-unleaded").textContent = fmtPrice(stats.avgUnleaded);
   document.getElementById("avg-premium").textContent  = fmtPrice(stats.avgPremium);
   document.getElementById("min-unleaded").textContent = fmtPrice(stats.minUnleaded);
@@ -13,14 +13,15 @@ export function renderStats(stats) {
   document.getElementById("max-unleaded").textContent = fmtPrice(stats.maxUnleaded);
   document.getElementById("max-premium").textContent  = fmtPrice(stats.maxPremium);
 
-  const isBuy = stats.recommendation === "Buy Now";
-  document.getElementById("rec-banner").className = "rec-banner " + (isBuy ? "buy" : "wait");
-  document.getElementById("rec-badge").textContent  = isBuy ? "Buy Now" : "Wait";
-  document.getElementById("rec-detail").textContent = isBuy
-    ? "Prices are rising — fill up soon"
-    : "Prices are falling — wait for a better deal";
-  document.getElementById("rec-delta").textContent =
-    fmtDelta(stats.trendDelta) + " / 12h";
+  // Use prediction data if available
+  const recommendation = prediction?.recommendation || "Wait";
+  const isError = recommendation === "Error";
+  const isBuy = recommendation === "Buy Now";
+  const bannerClass = isError ? "error" : isBuy ? "buy" : "wait";
+  const badgeText = isError ? "Error" : isBuy ? "Buy Now" : "Wait";
+  document.getElementById("rec-banner").className = "rec-banner " + bannerClass;
+  document.getElementById("rec-badge").textContent = badgeText;
+  document.getElementById("rec-detail").textContent = prediction?.reason || "Analyzing trend...";
 }
 
 // Club list + updated timestamp + live scrape notice

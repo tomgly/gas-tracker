@@ -18,3 +18,10 @@ export async function fetchHistory(days = 1) {
   if (!res.ok) throw new Error("Failed to fetch /api/history");
   return res.json();
 }
+
+// Fetch latest prediction
+export async function fetchPrediction() {
+  const res = await fetch(`/api/prediction`);
+  if (!res.ok) throw new Error("Failed to fetch /api/prediction");
+  return res.json();
+}

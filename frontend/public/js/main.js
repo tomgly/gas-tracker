@@ -1,6 +1,6 @@
 // js/main.js — Entry point: data loading, tab switching, theme toggle
 
-import { fetchLatest, fetchStats, fetchHistory } from "./api.js";
+import { fetchLatest, fetchStats, fetchHistory, fetchPrediction } from "./api.js";
 import { renderStats, renderLatest } from "./ui.js";
 import { renderChart, rebuildChart }  from "./chart.js";
 
@@ -21,12 +21,13 @@ function setTabUI(days) {
 
 async function load(days) {
   try {
-    const [stats, latest, history] = await Promise.all([
+    const [stats, latest, history, prediction] = await Promise.all([
       fetchStats(days),
       fetchLatest(),
       fetchHistory(days),
+      fetchPrediction(),
     ]);
-    renderStats(stats);
+    renderStats(stats, prediction);
     renderLatest(latest);
     renderChart(history);
     setTabUI(days);
