@@ -15,6 +15,7 @@ services:
     build: .
     container_name: gas-api
     environment:
+      - TZ=America/New_York
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - ALPHAVANTAGE_API_KEY=${ALPHAVANTAGE_API_KEY}
     volumes:
