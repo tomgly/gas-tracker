@@ -1,9 +1,9 @@
-// backend/api.js — Gas Price API Server
+// Gas Price API Server — Node 22.5+ built-in SQLite + Express
 
-import { DatabaseSync } from "node:sqlite";
-import { createRequire }  from "module";
-import { fileURLToPath }  from "url";
-import { dirname, resolve } from "path";
+import { DatabaseSync }      from "node:sqlite";
+import { createRequire }     from "module";
+import { fileURLToPath }     from "url";
+import { dirname, resolve }  from "path";
 import { fetchSamsGasPrice } from "./scraper.js";
 
 const require   = createRequire(import.meta.url);
@@ -16,11 +16,9 @@ const PORT      = 3002;
 
 app.use(cors());
 app.use(express.json());
-
-// Serve frontend static files at /
 app.use(express.static(resolve(__dirname, "../frontend/public")));
 
-const CLUB_IDS = {
+const CLUBS = {
   "6517": "Beavercreek",
   "6380": "North Dayton",
   "8136": "South Dayton",
@@ -28,112 +26,99 @@ const CLUB_IDS = {
 
 const db = new DatabaseSync(resolve(__dirname, "../data/gas_prices.db"));
 
-// ── helpers ───────────────────────────────────────────────────────────
+// Track last successful cron time and scrape fallback count for /api/health
+let lastCronSuccess  = null;
+let scrapeFallbacks  = 0;
 
+// Round to 3 decimal places, return null for invalid values
 function safe(n) {
   return n != null && !isNaN(n) ? +n.toFixed(3) : null;
 }
 
-// Save freshly scraped prices into the DB
-function saveToDB(clubId, unleaded, premium) {
-  db.prepare(`
-    INSERT INTO gas_prices (club_id, unleaded, premium, created_at)
-    VALUES (?, ?, ?, datetime('now', 'localtime'))
-  `).run(clubId, unleaded, premium);
+// Timestamp string for DB insert
+function nowLocal() {
+  return new Date().toLocaleString("sv-SE").replace(",", "");
 }
 
-// Scrape all clubs and save to DB.
-// Returns the same shape as a DB fetch so /api/latest can use it directly.
-async function scrapeAllAndSave() {
+// Save one scraped record to DB
+function saveRow(clubId, unleaded, premium) {
+  db.prepare(
+    "INSERT INTO gas_prices (club_id, unleaded, premium, created_at) VALUES (?, ?, ?, ?)"
+  ).run(clubId, unleaded, premium, nowLocal());
+}
+
+// Scrape all clubs in parallel and persist results
+async function scrapeAll() {
   const results = await Promise.all(
-    Object.entries(CLUB_IDS).map(async ([clubId, name]) => {
-      const prices = await fetchSamsGasPrice(clubId);
+    Object.entries(CLUBS).map(async ([id, name]) => {
+      const prices = await fetchSamsGasPrice(id);
       if (!prices) return null;
-
-      // scraper.js returns keys like "Unleaded" and "Premium"
-      const unleaded = prices["Unleaded"] ?? prices["unleaded"] ?? null;
-      const premium  = prices["Premium"]  ?? prices["premium"]  ?? null;
-
-      if (unleaded == null) return null;
-
-      saveToDB(clubId, unleaded, premium ?? unleaded);
-      console.log(`[scrape fallback] ${name}: $${unleaded} / $${premium}`);
-
-      return {
-        clubId,
-        name,
-        unleaded,
-        premium:   premium ?? unleaded,
-        updatedAt: new Date().toISOString().replace("T", " ").substring(0, 19),
-        isLive: true, // flag: came from live scrape, not DB
-      };
+      const u = prices["Unleaded"] ?? prices["unleaded"] ?? null;
+      const p = prices["Premium"]  ?? prices["premium"]  ?? null;
+      if (u == null) return null;
+      saveRow(id, u, p ?? u);
+      console.log(`[scrape] ${name} $${u} / $${p}`);
+      return { clubId: id, name, unleaded: u, premium: p ?? u, updatedAt: nowLocal() };
     })
   );
   return results.filter(Boolean);
 }
 
-// ── GET /api/latest ───────────────────────────────────────────────────
-// Latest price per club + averages.
-// Falls back to live scrape if DB is empty or stale.
+// Build club response rows from DB rows
+function buildClubs(rows) {
+  return rows.map(r => ({
+    clubId:    r.club_id,
+    name:      CLUBS[r.club_id] ?? r.club_id,
+    unleaded:  r.unleaded,
+    premium:   r.premium,
+    updatedAt: r.created_at,
+  }));
+}
+
+// GET /api/latest — newest price per club, falls back to live scrape if DB is empty
 app.get("/api/latest", async (req, res) => {
   try {
-    let rows = db.prepare(`
-      SELECT club_id, unleaded, premium, created_at
-      FROM gas_prices
-      WHERE id IN (SELECT MAX(id) FROM gas_prices GROUP BY club_id)
-      ORDER BY club_id
-    `).all();
+    let rows = db.prepare(
+      "SELECT club_id, unleaded, premium, created_at FROM gas_prices " +
+      "WHERE id IN (SELECT MAX(id) FROM gas_prices GROUP BY club_id) ORDER BY club_id"
+    ).all();
 
     let isLive = false;
 
-    // Fallback: scrape if DB has no data at all
     if (rows.length === 0) {
-      console.log("[api/latest] DB empty — falling back to live scrape");
-      const scraped = await scrapeAllAndSave();
+      console.log("[latest] DB empty, scraping live");
+      scrapeFallbacks++;
+      const scraped = await scrapeAll();
       if (scraped.length === 0) {
         return res.status(503).json({ error: "No data available and scrape failed" });
       }
-      // Re-read from DB so data is consistent
-      rows = db.prepare(`
-        SELECT club_id, unleaded, premium, created_at
-        FROM gas_prices
-        WHERE id IN (SELECT MAX(id) FROM gas_prices GROUP BY club_id)
-        ORDER BY club_id
-      `).all();
+      rows = db.prepare(
+        "SELECT club_id, unleaded, premium, created_at FROM gas_prices " +
+        "WHERE id IN (SELECT MAX(id) FROM gas_prices GROUP BY club_id) ORDER BY club_id"
+      ).all();
       isLive = true;
     }
 
-    const clubs = rows.map(r => ({
-      clubId:    r.club_id,
-      name:      CLUB_IDS[r.club_id] ?? r.club_id,
-      unleaded:  r.unleaded,
-      premium:   r.premium,
-      updatedAt: r.created_at,
-    }));
-
+    const clubs       = buildClubs(rows);
     const avgUnleaded = clubs.reduce((s, c) => s + c.unleaded, 0) / clubs.length;
     const avgPremium  = clubs.reduce((s, c) => s + c.premium,  0) / clubs.length;
 
     res.json({
       clubs,
-      average: {
-        unleaded: safe(avgUnleaded),
-        premium:  safe(avgPremium),
-      },
-      isLive, // true = data was just scraped live
+      average: { unleaded: safe(avgUnleaded), premium: safe(avgPremium) },
+      isLive,
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// ── GET /api/stats ────────────────────────────────────────────────────
-// Min, max (unleaded + premium), avg, trend, recommendation
-// ?days=1 (default) or ?days=7
+// GET /api/stats — min, max, avg, trend, recommendation
+// ?days=1 or ?days=7
 app.get("/api/stats", (req, res) => {
   try {
-    const days   = parseInt(req.query.days) || 1;
-    const window = days * 24 + 24; // add buffer for sparse data
+    const days   = Math.min(parseInt(req.query.days) || 1, 30);
+    const hours  = days * 24;
 
     const stats = db.prepare(`
       SELECT
@@ -141,42 +126,48 @@ app.get("/api/stats", (req, res) => {
         MIN(premium)  as minPremium,  MAX(premium)  as maxPremium,
         AVG(unleaded) as avgUnleaded, AVG(premium)  as avgPremium
       FROM gas_prices
-      WHERE created_at >= datetime('now', 'localtime', '-${window} hours')
+      WHERE created_at >= datetime('now', 'localtime', '-${hours} hours')
     `).get();
 
-    // Trend: compare latest per-club price vs ~12h ago
-    const recentRows = db.prepare(`
-      SELECT club_id, unleaded FROM gas_prices
-      WHERE id IN (SELECT MAX(id) FROM gas_prices GROUP BY club_id)
-    `).all();
+    // Fall back to all-time stats if no data in window
+    const source = stats.avgUnleaded != null ? stats : db.prepare(`
+      SELECT
+        MIN(unleaded) as minUnleaded, MAX(unleaded) as maxUnleaded,
+        MIN(premium)  as minPremium,  MAX(premium)  as maxPremium,
+        AVG(unleaded) as avgUnleaded, AVG(premium)  as avgPremium
+      FROM gas_prices
+    `).get();
 
-    const older12 = db.prepare(`
+    // Trend — latest per-club vs ~12h ago
+    const recent = db.prepare(
+      "SELECT club_id, unleaded FROM gas_prices " +
+      "WHERE id IN (SELECT MAX(id) FROM gas_prices GROUP BY club_id)"
+    ).all();
+
+    const older = db.prepare(`
       SELECT club_id, AVG(unleaded) as avg FROM gas_prices
       WHERE created_at >= datetime('now', 'localtime', '-13 hours')
         AND created_at <= datetime('now', 'localtime', '-11 hours')
       GROUP BY club_id
     `).all();
 
-    const olderMap = {};
-    older12.forEach(r => { olderMap[r.club_id] = r.avg; });
-
-    const deltas = recentRows
+    const olderMap = Object.fromEntries(older.map(r => [r.club_id, r.avg]));
+    const deltas   = recent
       .filter(r => olderMap[r.club_id] != null)
       .map(r => r.unleaded - olderMap[r.club_id]);
 
     const trendDelta = deltas.length > 0
       ? +(deltas.reduce((s, d) => s + d, 0) / deltas.length).toFixed(4)
       : 0;
-
     const trend = trendDelta > 0 ? "increasing" : "decreasing";
 
     res.json({
-      minUnleaded: safe(stats.minUnleaded),
-      maxUnleaded: safe(stats.maxUnleaded),
-      minPremium:  safe(stats.minPremium),
-      maxPremium:  safe(stats.maxPremium),
-      avgUnleaded: safe(stats.avgUnleaded),
-      avgPremium:  safe(stats.avgPremium),
+      minUnleaded: safe(source.minUnleaded),
+      maxUnleaded: safe(source.maxUnleaded),
+      minPremium:  safe(source.minPremium),
+      maxPremium:  safe(source.maxPremium),
+      avgUnleaded: safe(source.avgUnleaded),
+      avgPremium:  safe(source.avgPremium),
       trend,
       trendDelta,
       recommendation: trend === "increasing" ? "Buy Now" : "Wait",
@@ -186,24 +177,27 @@ app.get("/api/stats", (req, res) => {
   }
 });
 
-// ── GET /api/history ──────────────────────────────────────────────────
-// Price history for chart
-// ?days=1  → hourly buckets for the last 24h
-// ?days=7  → daily buckets for the last 7 days (or however many exist)
+// GET /api/history — hourly buckets for ?days=1, daily for ?days=7
 app.get("/api/history", (req, res) => {
   try {
-    const days   = parseInt(req.query.days) || 1;
-    const window = days * 24 + 24;
+    const days  = Math.min(parseInt(req.query.days) || 1, 30);
+    const hours = days * 24;
 
-    const rows = db.prepare(`
-      SELECT club_id, unleaded, premium, created_at
-      FROM gas_prices
-      WHERE created_at >= datetime('now', 'localtime', '-${window} hours')
+    let rows = db.prepare(`
+      SELECT club_id, unleaded, premium, created_at FROM gas_prices
+      WHERE created_at >= datetime('now', 'localtime', '-${hours} hours')
       ORDER BY created_at ASC
     `).all();
 
+    // If nothing in window, use latest row per club so chart is not blank
+    if (rows.length === 0) {
+      rows = db.prepare(
+        "SELECT club_id, unleaded, premium, created_at FROM gas_prices " +
+        "WHERE id IN (SELECT MAX(id) FROM gas_prices GROUP BY club_id)"
+      ).all();
+    }
+
     if (days === 1) {
-      // Hourly buckets
       const byHour = {};
       for (const r of rows) {
         const key = r.created_at.substring(0, 13) + ":00:00";
@@ -211,24 +205,20 @@ app.get("/api/history", (req, res) => {
         byHour[key].unleaded.push(r.unleaded);
         byHour[key].premium.push(r.premium);
       }
-
       const history = Object.entries(byHour).map(([ts, v]) => ({
         timestamp:   ts,
         avgUnleaded: safe(v.unleaded.reduce((s, p) => s + p, 0) / v.unleaded.length),
         avgPremium:  safe(v.premium.reduce((s, p)  => s + p, 0) / v.premium.length),
       }));
-
       const byClub = {};
       for (const r of rows) {
-        const name = CLUB_IDS[r.club_id] ?? r.club_id;
+        const name = CLUBS[r.club_id] ?? r.club_id;
         if (!byClub[name]) byClub[name] = [];
         byClub[name].push({ timestamp: r.created_at, unleaded: r.unleaded });
       }
-
       res.json({ mode: "hourly", history, byClub });
 
     } else {
-      // Daily buckets
       const byDay = {};
       for (const r of rows) {
         const key = r.created_at.substring(0, 10);
@@ -236,22 +226,19 @@ app.get("/api/history", (req, res) => {
         byDay[key].unleaded.push(r.unleaded);
         byDay[key].premium.push(r.premium);
       }
-
       const history = Object.entries(byDay).map(([date, v]) => ({
         timestamp:   date,
         avgUnleaded: safe(v.unleaded.reduce((s, p) => s + p, 0) / v.unleaded.length),
         avgPremium:  safe(v.premium.reduce((s, p)  => s + p, 0) / v.premium.length),
       }));
-
       const byClubDay = {};
       for (const r of rows) {
-        const name = CLUB_IDS[r.club_id] ?? r.club_id;
+        const name = CLUBS[r.club_id] ?? r.club_id;
         const date = r.created_at.substring(0, 10);
         if (!byClubDay[name])       byClubDay[name] = {};
         if (!byClubDay[name][date]) byClubDay[name][date] = [];
         byClubDay[name][date].push(r.unleaded);
       }
-
       const byClub = {};
       for (const [name, clubDays] of Object.entries(byClubDay)) {
         byClub[name] = Object.entries(clubDays).map(([date, prices]) => ({
@@ -259,7 +246,6 @@ app.get("/api/history", (req, res) => {
           unleaded:  safe(prices.reduce((s, p) => s + p, 0) / prices.length),
         }));
       }
-
       res.json({ mode: "daily", history, byClub });
     }
   } catch (err) {
@@ -267,6 +253,55 @@ app.get("/api/history", (req, res) => {
   }
 });
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Gas Price API → http://localhost:${PORT}`);
+// GET /api/health — server status without checking logs
+app.get("/api/health", (req, res) => {
+  try {
+    const total = db.prepare("SELECT COUNT(*) as n FROM gas_prices").get().n;
+
+    const latest = db.prepare(
+      "SELECT created_at FROM gas_prices ORDER BY id DESC LIMIT 1"
+    ).get();
+
+    const last24h = db.prepare(`
+      SELECT COUNT(*) as n FROM gas_prices
+      WHERE created_at >= datetime('now', 'localtime', '-24 hours')
+    `).get().n;
+
+    const last1h = db.prepare(`
+      SELECT COUNT(*) as n FROM gas_prices
+      WHERE created_at >= datetime('now', 'localtime', '-1 hours')
+    `).get().n;
+
+    // Cron is healthy if at least 1 row was added in the last 90 minutes
+    const recentEnough = db.prepare(`
+      SELECT COUNT(*) as n FROM gas_prices
+      WHERE created_at >= datetime('now', 'localtime', '-90 minutes')
+    `).get().n;
+
+    const cronStatus = recentEnough > 0 ? "ok" : "stale";
+
+    res.json({
+      api:             "ok",
+      db:              "ok",
+      totalRows:       total,
+      latestEntry:     latest?.created_at ?? null,
+      rowsLast24h:     last24h,
+      rowsLastHour:    last1h,
+      cronStatus,
+      scrapeFallbacks,
+      checkedAt:       nowLocal(),
+    });
+  } catch (err) {
+    res.status(500).json({ api: "ok", db: "error", error: err.message });
+  }
+});
+
+// Mark cron as succeeded — called by cron.js after each successful scrape
+app.post("/api/health/cron-ping", (req, res) => {
+  lastCronSuccess = nowLocal();
+  res.json({ received: true, at: lastCronSuccess });
+});
+
+app.listen(PORT, () => {
+  console.log(`API running at http://localhost:${PORT}`);
 });

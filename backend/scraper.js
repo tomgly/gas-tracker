@@ -8,7 +8,12 @@ export async function fetchSamsGasPrice(clubId) {
     const url = `https://www.samsclub.com/club/${clubId}`;
 
     // HTML取得
-    const response = await axios.get(url);
+    const response = await axios.get(url, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36"
+      },
+      timeout: 5000
+    });
 
     // HTMLを解析
     const $ = cheerio.load(response.data);
