@@ -1,13 +1,11 @@
 import axios from "axios";
 import * as cheerio from "cheerio";
 
-// sam's clubのガソリン価格を取得する関数
+// Fetch Sam's Club gas prices
 export async function fetchSamsGasPrice(clubId) {
   try {
-    // 店舗ページURL
     const url = `https://www.samsclub.com/club/${clubId}`;
 
-    // HTML取得
     const response = await axios.get(url, {
       headers: {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36"
@@ -15,30 +13,20 @@ export async function fetchSamsGasPrice(clubId) {
       timeout: 5000
     });
 
-    // HTMLを解析
     const $ = cheerio.load(response.data);
 
     let prices = {};
 
-    // 各ガソリン種類ごとに処理
     $(".pa3.br3.flex-grow-1").each((i, el) => {
-      // ガソリンの種類
       const type = $(el).find(".tc.f6").text().trim();
-
-      // 価格の整数部分
       const mainPrice = $(el).find(".f2").contents().first().text().trim();
-
-      // 数値に変換
       const price = parseFloat(mainPrice);
-
-      // 保存
       prices[type] = price;
     });
 
     return prices;
-
   } catch (error) {
-    console.error("取得エラー:", error.message);
+    console.error("Fetch error:", error.message);
     return null;
   }
 }
