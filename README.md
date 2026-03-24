@@ -17,7 +17,7 @@ docker compose up -d
 docker exec gas-api node backend/index.js
 
 # View UI
-Open http://localhost:3002
+Open http://localhost:8080
 ```
 
 ## Architecture
