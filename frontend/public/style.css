@@ -491,7 +491,6 @@ footer {
   .avg-divider { margin: 0 12px; height: 38px; }
 
   .chart-wrap  { height: 210px; }
-  .last-updated { display: none; }
 
   .col-right { order: 1; }
   .col-left  { order: 0; }
