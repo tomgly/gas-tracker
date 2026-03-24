@@ -9,7 +9,8 @@ const db = new DatabaseSync(dbPath);
 
 // Get current local datetime in "YYYY-MM-DD HH:MM:SS" format
 function getNowLocal() {
-  return new Date().toLocaleString("sv-SE").replace(",", "");
+  const now = new Date();
+  return now.toLocaleString("sv-SE", {timeZone: "America/New_York"}).replace("T", " ");
 }
 
 // Initialize database tables
