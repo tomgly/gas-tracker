@@ -12,7 +12,7 @@ const cors      = require("cors");
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app       = express();
-const PORT      = 3001;
+const PORT      = 3002;
 
 app.use(cors());
 app.use(express.json());
@@ -267,6 +267,6 @@ app.get("/api/history", (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`Gas Price API → http://localhost:${PORT}`);
 });

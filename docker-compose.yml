@@ -1,0 +1,26 @@
+services:
+  gas-tracker:
+    image: httpd:latest
+    container_name: gas-tracker
+    ports:
+      - '8080:80'
+    volumes:
+      - ./frontend/public:/usr/local/apache2/htdocs
+      - ./my-httpd.conf:/usr/local/apache2/conf/httpd.conf
+    networks:
+      - gas-internal
+    restart: unless-stopped
+
+  gas-api:
+    build: .
+    container_name: gas-api
+    volumes:
+      - ./data:/app/data
+    networks:
+      - gas-internal
+    restart: unless-stopped
+
+networks:
+  gas-internal:
+    driver: bridge
+    internal: true

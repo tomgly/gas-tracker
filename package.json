@@ -5,9 +5,9 @@
   "description": "Gas Price Tracker for Dayton area",
   "main": "backend/index.js",
   "scripts": {
-    "start": "concurrently \"node --experimental-sqlite backend/api.js\" \"node --experimental-sqlite backend/cron.js\"",
-    "api": "node --experimental-sqlite backend/api.js",
-    "cron": "node --experimental-sqlite backend/cron.js"
+    "start": "concurrently \"node backend/api.js\" \"node backend/cron.js\"",
+    "api": "node backend/api.js",
+    "cron": "node backend/cron.js"
   },
   "dependencies": {
     "axios": "^1.13.6",
