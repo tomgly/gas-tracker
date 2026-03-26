@@ -7,9 +7,9 @@ export async function fetchLatest() {
   return res.json();
 }
 
-// Fetch stats for the past N days (default 1) and fuel type (default "unleaded")
-export async function fetchStats(days = 1, fuel = "unleaded") {
-  const res = await fetch(`/api/stats?days=${days}&fuel=${fuel}`);
+// Fetch stats for the past N days (default 1)
+export async function fetchStats(days = 1) {
+  const res = await fetch(`/api/stats?days=${days}`);
   if (!res.ok) throw new Error("Failed to fetch /api/stats");
   return res.json();
 }
