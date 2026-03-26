@@ -1,61 +1,49 @@
 # Gas Price Tracker
 
-Scrapes real-time gas prices from Sam's Club stores in Dayton, OH and displays analytics with AI-powered buy recommendations.
+Real-time gas price tracker for the Dayton, Ohio area with price analysis, brand comparison, and AI-powered predictions.
+
+## Features
+
+- **Live Price Tracking**: Real-time gas prices from multiple sources
+- **Brand Comparison**: View prices across different gas stations
+- **Price History**: 24-hour and 7-day trend charts
+- **AI Predictions**: Price trend predictions using market analysis
+- **Dark/Light Theme**: Toggle between themes for comfortable viewing
+- **Responsive Design**: Works on all devices
+
+## Environment Variables
+
+Copy [`.env.example`](.env.example) to `.env` and fill in your API keys
+
+```env
+GEMINI_API_KEY=your_key
+ALPHAVANTAGE_API_KEY=your_key
+```
+
+- `GEMINI_API_KEY`: Get from [Google AI Studio](https://aistudio.google.com/api-keys)
+- `ALPHAVANTAGE_API_KEY`: Get from [AlphaVantage](https://www.alphavantage.co/support/#api-key)
 
 ## Quick Start
 
 ```bash
-# Clone and setup
 git clone https://github.com/tomgly/gas-tracker.git
 cd gas-tracker
-npm install
-
-# Start with Docker
-docker compose up -d
-
-# Manual scrape
-docker exec gas-api node backend/index.js
-
-# View UI
-Open http://localhost:8080
+cp .env.example .env
+# Edit .env with your API keys
+docker compose up -d --build
 ```
 
-## Architecture
+Access at `http://localhost:8080`
 
-- **Backend**: Node.js + SQLite (price scraping, cron jobs, prediction API)
-- **Frontend**: Vanilla JS + Chart.js (price charts, recommendations)
-- **Scraping**: Sam's Club API (3 Dayton area stores)
-- **AI**: Gemini API (market analysis & recommendations)
-- **Market Data**: Alpha Vantage API (crude oil prices)
+## Documentation
 
-## Usage
+Detailed documentation is available in the [Wiki](https://github.com/tomgly/gas-tracker/wiki).
 
-### Automatic Scraping (Cron)
-Runs 9 AM - 8 PM daily via `cron.js`:
-```bash
-npm start  # Starts both cron and API server
-```
+- [Architecture](https://github.com/tomgly/gas-tracker/wiki/Architecture)
+- [Manual Scrape](https://github.com/tomgly/gas-tracker/wiki/Manual-Scrape)
+- [API Reference](https://github.com/tomgly/gas-tracker/wiki/API-Reference)
+- [Development Guide](https://github.com/tomgly/gas-tracker/wiki/Development-Guide)
 
-### Manual Scrape
-```bash
-docker exec gas-api node backend/index.js
-```
+## License
 
-### Database
-- Location: `data/gas-tracker.db`
-- Tables: `gas_prices`, `oil_prices`, `predictions`
-
-## Caching
-
-The prediction system uses **6-hour cache**:
-- Fresh prediction generated on first request
-- Cached for 6 hours via `expires_at` timestamp
-- Manual scrape uses cached prediction if available
-- Use `--skip-prediction` flag to force new prediction
-
-## Tasks
-
-- [ ] Export price history as CSV/JSON
-- [ ] Price alerts (email/webhook)
-- [ ] Mobile app
-- [ ] Support additional gas stations
+This project is licensed under the [MIT License](LICENSE). You are free to use, modify, and distribute this software in accordance with the terms of the MIT License.
