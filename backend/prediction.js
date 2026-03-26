@@ -1,5 +1,5 @@
 import "dotenv/config";
-import axios from "axios";
+import { gotScraping } from "got-scraping";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import {
   getGasPricesLast14Days,
@@ -32,20 +32,22 @@ function getDateDaysAgo(days) {
 // Fetch oil prices from AlphaVantage API
 async function fetchOilPrices(oilType) {
   try {
-    const response = await axios.get("https://www.alphavantage.co/query", {
-      params: {
+    const response = await gotScraping({
+      url: "https://www.alphavantage.co/query",
+      searchParams: {
         function: oilType === "WTI" ? "WTI" : "BRENT",
         interval: "daily",
         apikey: ALPHAVANTAGE_API_KEY
-      }
+      },
+      responseType: "json"
     });
 
-    if (response.data.Note) {
+    if (response.body?.Note) {
       console.error("AlphaVantage rate limit reached");
       return null;
     }
 
-    const data = response.data.data || [];
+    const data = response.body?.data || [];
     return data;
   } catch (err) {
     console.error(`Fetch ${oilType} prices error:`, err.message);

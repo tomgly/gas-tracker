@@ -3,10 +3,9 @@ import { createRequire } from "module";
 import { fileURLToPath } from "url";
 import { dirname, resolve } from "path";
 import { getPrediction } from "./prediction.js";
-import { CLUBS, getNowLocal } from "./config.js";
+import { CLUBS, getNowLocal, GASBUDDY_STATIONS } from "./config.js";
 import {
   initDB,
-  saveGasPrice,
   getLatestGasPrice,
   getGasPriceCount,
   getGasPriceCountLast24h,
@@ -38,6 +37,14 @@ function safe(n) {
   return n != null && !isNaN(n) ? +n.toFixed(3) : null;
 }
 
+// Get brand name for a station
+function getBrand(stationId, source) {
+  if (source === "sams_club") {
+    return "Sam's Club";
+  }
+  return GASBUDDY_STATIONS[stationId]?.name || "Unknown";
+}
+
 // Get latest gas prices
 app.get("/api/latest", (req, res) => {
   try {
@@ -57,7 +64,7 @@ app.get("/api/latest", (req, res) => {
 
     const sams = samsRows.map(r => ({
       stationId: r.station_id,
-      name: CLUBS[r.station_id]?.name || r.station_id,
+      name: "Sam's Club",
       unleaded: r.unleaded,
       premium: r.premium,
       updatedAt: r.created_at
@@ -65,6 +72,7 @@ app.get("/api/latest", (req, res) => {
 
     const gasBuddy = gasBuddyRows.map(r => ({
       stationId: r.station_id,
+      name: GASBUDDY_STATIONS[r.station_id]?.name || "Unknown",
       unleaded: r.unleaded,
       premium: r.premium,
       updatedAt: r.created_at
@@ -84,121 +92,128 @@ app.get("/api/latest", (req, res) => {
   }
 });
 
-// Get statistics for specified days
+// Get statistics for specified days and fuel type
 app.get("/api/stats", (req, res) => {
   try {
     const days = Math.min(parseInt(req.query.days) || 1, 30);
     const hours = days * 24;
 
-    const stats = db.prepare(`
+    // Unleaded stats
+    const unleadedStats = db.prepare(`
       SELECT
-        MIN(unleaded) as minUnleaded, MAX(unleaded) as maxUnleaded,
-        MIN(premium) as minPremium, MAX(premium) as maxPremium,
-        AVG(unleaded) as avgUnleaded, AVG(premium) as avgPremium
+        MIN(unleaded) as minPrice, MAX(unleaded) as maxPrice,
+        AVG(unleaded) as avgPrice
       FROM gas_prices
-      WHERE created_at >= datetime('now', 'localtime', '-${hours} hours')
+      WHERE unleaded IS NOT NULL
+      AND created_at >= datetime('now', 'localtime', '-${hours} hours')
     `).get();
 
-    const recent = db.prepare(`
-      SELECT station_id, unleaded FROM gas_prices
-      WHERE source = 'sams_club'
-      AND id IN (SELECT MAX(id) FROM gas_prices WHERE source = 'sams_club' GROUP BY station_id)
-    `).all();
-
-    const older = db.prepare(`
-      SELECT station_id, AVG(unleaded) as avg FROM gas_prices
-      WHERE source = 'sams_club'
-      AND created_at >= datetime('now', 'localtime', '-13 hours')
-      AND created_at <= datetime('now', 'localtime', '-11 hours')
-      GROUP BY station_id
-    `).all();
-
-    const olderMap = Object.fromEntries(older.map(r => [r.station_id, r.avg]));
-    const deltas = recent
-      .filter(r => olderMap[r.station_id] != null)
-      .map(r => r.unleaded - olderMap[r.station_id]);
-
-    const trendDelta = deltas.length > 0
-      ? +(deltas.reduce((s, d) => s + d, 0) / deltas.length).toFixed(4)
-      : 0;
-    const trend = trendDelta > 0 ? "increasing" : "decreasing";
+    // Premium stats
+    const premiumStats = db.prepare(`
+      SELECT
+        MIN(premium) as minPrice, MAX(premium) as maxPrice,
+        AVG(premium) as avgPrice
+      FROM gas_prices
+      WHERE premium IS NOT NULL
+      AND created_at >= datetime('now', 'localtime', '-${hours} hours')
+    `).get();
 
     res.json({
-      minUnleaded: safe(stats.minUnleaded),
-      maxUnleaded: safe(stats.maxUnleaded),
-      minPremium: safe(stats.minPremium),
-      maxPremium: safe(stats.maxPremium),
-      avgUnleaded: safe(stats.avgUnleaded),
-      avgPremium: safe(stats.avgPremium),
-      trend,
-      trendDelta
+      unleaded: {
+        minPrice: safe(unleadedStats.minPrice),
+        maxPrice: safe(unleadedStats.maxPrice),
+        avgPrice: safe(unleadedStats.avgPrice)
+      },
+      premium: {
+        minPrice: safe(premiumStats.minPrice),
+        maxPrice: safe(premiumStats.maxPrice),
+        avgPrice: safe(premiumStats.avgPrice)
+      }
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// Get price history hourly or daily
+// Get price history by brand
 app.get("/api/history", (req, res) => {
   try {
     const days = Math.min(parseInt(req.query.days) || 1, 30);
+    const fuel = req.query.fuel || "unleaded";
     const hours = days * 24;
+    const fuelKey = fuel === "premium" ? "premium" : "unleaded";
 
     let rows = db.prepare(`
-      SELECT source, station_id, unleaded, premium, created_at FROM gas_prices
-      WHERE created_at >= datetime('now', 'localtime', '-${hours} hours')
+      SELECT source, station_id, ${fuelKey} as price, created_at FROM gas_prices
+      WHERE ${fuelKey} IS NOT NULL
+      AND created_at >= datetime('now', 'localtime', '-${hours} hours')
       ORDER BY created_at ASC
     `).all();
 
     if (rows.length === 0) {
       rows = db.prepare(
-        "SELECT source, station_id, unleaded, premium, created_at FROM gas_prices ORDER BY id DESC LIMIT 100"
+        `SELECT source, station_id, ${fuelKey} as price, created_at FROM gas_prices WHERE ${fuelKey} IS NOT NULL ORDER BY id DESC LIMIT 100`
       ).all();
     }
 
-    if (days === 1) {
-      const byHour = {};
-      rows.forEach(r => {
-        const key = r.created_at.substring(0, 13) + ":00:00";
-        if (!byHour[key]) byHour[key] = { unleaded: [], premium: [] };
-        if (r.unleaded != null) byHour[key].unleaded.push(r.unleaded);
-        if (r.premium != null) byHour[key].premium.push(r.premium);
+    const mode = days === 1 ? "hourly" : "daily";
+    const timeKey = mode === "hourly" ? 13 : 10;
+
+    // Group by timestamp
+    const byTime = {};
+    rows.forEach(r => {
+      const key = r.created_at.substring(0, timeKey) + (mode === "hourly" ? ":00:00" : "");
+      if (!byTime[key]) {
+        byTime[key] = {};
+      }
+      const brand = getBrand(r.station_id, r.source);
+      if (!byTime[key][brand]) {
+        byTime[key][brand] = [];
+      }
+      byTime[key][brand].push(r.price);
+    });
+
+    // Calculate averages by brand per timestamp
+    const history = Object.entries(byTime)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([ts, brands]) => {
+        const point = { timestamp: ts };
+        for (const [brand, prices] of Object.entries(brands)) {
+          const avg = prices.reduce((s, p) => s + p, 0) / prices.length;
+          point[brand] = safe(avg);
+        }
+        return point;
       });
 
-      const history = Object.entries(byHour)
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([ts, v]) => ({
-          timestamp: ts,
-          avgUnleaded: v.unleaded.length > 0 ? safe(v.unleaded.reduce((s, p) => s + p, 0) / v.unleaded.length) : null,
-          avgPremium: v.premium.length > 0 ? safe(v.premium.reduce((s, p) => s + p, 0) / v.premium.length) : null
-        }));
-
-      res.json({ mode: "hourly", history });
-    } else {
-      const byDay = {};
-      rows.forEach(r => {
-        const key = r.created_at.substring(0, 10);
-        if (!byDay[key]) byDay[key] = { unleaded: [], premium: [] };
-        if (r.unleaded != null) byDay[key].unleaded.push(r.unleaded);
-        if (r.premium != null) byDay[key].premium.push(r.premium);
+    // Get all brands that appear in history
+    const allBrands = new Set();
+    history.forEach(h => {
+      Object.keys(h).forEach(k => {
+        if (k !== "timestamp") allBrands.add(k);
       });
+    });
 
-      const history = Object.entries(byDay)
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([date, v]) => ({
-          timestamp: date,
-          avgUnleaded: v.unleaded.length > 0 ? safe(v.unleaded.reduce((s, p) => s + p, 0) / v.unleaded.length) : null,
-          avgPremium: v.premium.length > 0 ? safe(v.premium.reduce((s, p) => s + p, 0) / v.premium.length) : null
-        }));
+    // Calculate overall average per timestamp
+    history.forEach(h => {
+      const avgValues = [];
+      allBrands.forEach(brand => {
+        if (h[brand] != null) avgValues.push(h[brand]);
+      });
+      h.Average = avgValues.length > 0 ? safe(avgValues.reduce((s, v) => s + v, 0) / avgValues.length) : null;
+    });
 
-      res.json({ mode: "daily", history });
-    }
+    res.json({
+      mode,
+      fuel,
+      history,
+      brands: Array.from(allBrands).sort()
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// Get gas price prediction using Gemini
+// Get gas price prediction
 app.get("/api/prediction", async (req, res) => {
   try {
     const result = await getPrediction();
@@ -208,8 +223,8 @@ app.get("/api/prediction", async (req, res) => {
   }
 });
 
-// Get server health status
-app.get("/api/health", (req, res) => {
+// Get health status
+app.get("/api/health", async (req, res) => {
   try {
     const total = getGasPriceCount();
     const latest = getLatestGasPrice();
@@ -223,7 +238,7 @@ app.get("/api/health", (req, res) => {
     const gasBuddyLatest = db.prepare(
       "SELECT created_at FROM gas_prices WHERE source = 'gasbuddy' ORDER BY id DESC LIMIT 1"
     ).get();
-    
+
     const nowLocal = getNowLocal();
     const nowTime = new Date(nowLocal);
     const samsTime = samsLatest ? new Date(samsLatest.created_at) : null;
@@ -232,14 +247,31 @@ app.get("/api/health", (req, res) => {
     const samsStatus = samsTime && (nowTime - samsTime) < 86400000 ? "ok" : "stale";
     const gasBuddyStatus = gasBuddyTime && (nowTime - gasBuddyTime) < 86400000 ? "ok" : "stale";
 
+    // Count unknown stations
+    let unknownCount = 0;
+    try {
+      const unknownPath = resolve(__dirname, "../data/unknown_stations.json");
+      const fs = await import("fs/promises");
+      const content = await fs.readFile(unknownPath, "utf-8");
+      const unknown = JSON.parse(content);
+      unknownCount = Array.isArray(unknown) ? unknown.length : 0;
+    } catch (err) {
+      unknownCount = 0;
+    }
+
+    // Determine cron status
+    let cronStatus = "ok";
+    if (samsStatus === "stale") cronStatus = "sams error";
+    if (gasBuddyStatus === "stale") cronStatus = "gasbuddy error";
+    if (samsStatus === "stale" && gasBuddyStatus === "stale") cronStatus = "all error";
+
     const prediction = getLatestPrediction();
 
     res.json({
       status: {
         api: "ok",
         db: "ok",
-        sams: samsStatus,
-        gasbuddy: gasBuddyStatus
+        cron: cronStatus
       },
       totalRows: total,
       latestEntry: latest?.created_at ?? null,
@@ -247,6 +279,7 @@ app.get("/api/health", (req, res) => {
       rowsLastHour: last1h,
       samsLatest: samsLatest?.created_at ?? null,
       gasBuddyLatest: gasBuddyLatest?.created_at ?? null,
+      unknownStations: unknownCount,
       scrapeFallbacks,
       prediction: {
         status: prediction ? "available" : "unavailable",
@@ -256,7 +289,7 @@ app.get("/api/health", (req, res) => {
     });
   } catch (err) {
     res.status(500).json({
-      status: { api: "ok", db: "error", sams: "unknown", gasbuddy: "unknown" },
+      status: { api: "ok", db: "error", cron: "unknown" },
       error: err.message
     });
   }
