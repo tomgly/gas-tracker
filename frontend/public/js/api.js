@@ -1,20 +1,22 @@
 // js/api.js — Backend fetch calls
 
+// Fetch latest price and timestamp
 export async function fetchLatest() {
   const res = await fetch(`/api/latest`);
   if (!res.ok) throw new Error("Failed to fetch /api/latest");
   return res.json();
 }
 
-// days: 1 (default) or 7
-export async function fetchStats(days = 1) {
-  const res = await fetch(`/api/stats?days=${days}`);
+// Fetch stats for the past N days (default 1) and fuel type (default "unleaded")
+export async function fetchStats(days = 1, fuel = "unleaded") {
+  const res = await fetch(`/api/stats?days=${days}&fuel=${fuel}`);
   if (!res.ok) throw new Error("Failed to fetch /api/stats");
   return res.json();
 }
 
-export async function fetchHistory(days = 1) {
-  const res = await fetch(`/api/history?days=${days}`);
+// Fetch price history for the past N days (default 1) and fuel type (default "unleaded")
+export async function fetchHistory(days = 1, fuel = "unleaded") {
+  const res = await fetch(`/api/history?days=${days}&fuel=${fuel}`);
   if (!res.ok) throw new Error("Failed to fetch /api/history");
   return res.json();
 }

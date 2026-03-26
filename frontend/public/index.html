@@ -80,19 +80,16 @@
       <div class="rec-banner" id="rec-banner">
         <div class="rec-left">
           <div class="rec-badge" id="rec-badge">—</div>
-          <div class="rec-desc"  id="rec-detail">Analyzing trend...</div>
+          <div class="rec-desc" id="rec-detail">Analyzing trend...</div>
         </div>
       </div>
 
-      <div class="card clubs-card">
-        <div class="card-title">Prices by Location</div>
-        <div class="club-list" id="club-list">
+      <div class="card brand-card">
+        <div class="card-title">Prices by Brand</div>
+        <div class="brand-list" id="brand-list">
           <div class="loading-text">Loading...</div>
         </div>
-        <div id="live-scrape-notice" class="live-notice" style="display:none">
-          Live data fetched — cron may not be running
-        </div>
-        <div class="data-source">Data source: sam's club</div>
+        <div class="data-source">Data source: Sam's Club & GasBuddy</div>
       </div>
 
     </div>
@@ -102,12 +99,16 @@
       <div class="card chart-card">
         <div class="chart-header">
           <div class="chart-title">
-            <span id="chart-period-label">24-Hour</span> Price Trend
+            <span id="fuel-label">Unleaded</span> Price Trend
           </div>
           <div class="chart-controls">
             <div class="tab-group">
-              <button class="tab-btn active" data-days="1">24h</button>
-              <button class="tab-btn"        data-days="7">7d</button>
+              <button class="tab-btn active" data-type="days" data-days="1">24h</button>
+              <button class="tab-btn" data-type="days" data-days="7">7d</button>
+            </div>
+            <div class="tab-group">
+              <button class="tab-btn active" data-type="fuel" data-fuel="unleaded">Unleaded</button>
+              <button class="tab-btn" data-type="fuel" data-fuel="premium">Premium</button>
             </div>
             <div class="chart-legend" id="chart-legend"></div>
           </div>

@@ -2,49 +2,67 @@
 
 import { fetchLatest, fetchStats, fetchHistory, fetchPrediction } from "./api.js";
 import { renderStats, renderLatest } from "./ui.js";
-import { renderChart, rebuildChart }  from "./chart.js";
+import { renderChart, rebuildChart } from "./chart.js";
 
-// Read ?view=7d from URL, default to 1d
-function getDays() {
-  return new URLSearchParams(location.search).get("view") === "7d" ? 7 : 1;
+// Parse URL parameters for view mode
+function getParams() {
+  const params = new URLSearchParams(location.search);
+  return {
+    days: params.get("view") === "7d" ? 7 : 1,
+    fuel: params.get("fuel") === "premium" ? "premium" : "unleaded",
+  };
 }
 
-// Update tab button states
-function setTabUI(days) {
+// Update tab button states and labels
+function setTabUI(days, fuel) {
   document.querySelectorAll(".tab-btn").forEach(btn => {
-    btn.classList.toggle("active", btn.dataset.days === String(days));
+    if (btn.dataset.type === "days") {
+      btn.classList.toggle("active", btn.dataset.days === String(days));
+    } else if (btn.dataset.type === "fuel") {
+      btn.classList.toggle("active", btn.dataset.fuel === fuel);
+    }
   });
-  // Update chart title label
+
   const label = document.getElementById("chart-period-label");
   if (label) label.textContent = days === 7 ? "7-Day" : "24-Hour";
+
+  const fuelLabel = document.getElementById("fuel-label");
+  if (fuelLabel) fuelLabel.textContent = fuel === "premium" ? "Premium" : "Unleaded";
 }
 
-async function load(days) {
+// Main data loading function
+async function load(days, fuel) {
   try {
     const [stats, latest, history, prediction] = await Promise.all([
-      fetchStats(days),
+      fetchStats(days, fuel),
       fetchLatest(),
-      fetchHistory(days),
+      fetchHistory(days, fuel),
       fetchPrediction(),
     ]);
-    renderStats(stats, prediction);
+    renderStats(stats, prediction, latest);
     renderLatest(latest);
     renderChart(history);
-    setTabUI(days);
+    setTabUI(days, fuel);
   } catch (err) {
     console.error("Load failed:", err);
-    document.getElementById("avg-unleaded").textContent = "Error";
   }
 }
 
-// Tab click: update URL param and reload data
+// Tab click handlers
 document.querySelectorAll(".tab-btn").forEach(btn => {
   btn.addEventListener("click", () => {
-    const days = parseInt(btn.dataset.days);
-    const url  = new URL(location.href);
-    url.searchParams.set("view", days === 7 ? "7d" : "1d");
+    const params = getParams();
+    if (btn.dataset.type === "days") {
+      params.days = parseInt(btn.dataset.days);
+    } else if (btn.dataset.type === "fuel") {
+      params.fuel = btn.dataset.fuel;
+    }
+
+    const url = new URL(location.href);
+    url.searchParams.set("view", params.days === 7 ? "7d" : "1d");
+    url.searchParams.set("fuel", params.fuel);
     history.replaceState({}, "", url);
-    load(days);
+    load(params.days, params.fuel);
   });
 });
 
@@ -57,6 +75,9 @@ document.getElementById("theme-toggle").addEventListener("click", () => {
 });
 
 // Boot
-const days = getDays();
-load(days);
-setInterval(() => load(getDays()), 5 * 60 * 1000);
+const { days, fuel } = getParams();
+load(days, fuel);
+setInterval(() => {
+  const { days: d, fuel: f } = getParams();
+  load(d, f);
+}, 5 * 60 * 1000);
