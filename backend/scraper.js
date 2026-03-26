@@ -9,7 +9,7 @@ import { GASBUDDY_STATIONS, getNowLocal } from "./config.js";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const unknownStationsPath = path.resolve(__dirname, "../data/unknown_stations.json");
 
-// Fetch sam's club gas prices
+// Fetch Sam's Club gas prices
 export async function fetchSamsGasPrice(clubId) {
   try {
     const url = `https://www.samsclub.com/club/${clubId}`;
@@ -34,7 +34,7 @@ export async function fetchSamsGasPrice(clubId) {
 
     return prices;
   } catch (error) {
-    console.error("sam's club fetch error:", error.message);
+    console.error("Sam's Club fetch error:", error.message);
     return null;
   }
 }

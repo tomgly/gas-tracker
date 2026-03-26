@@ -6,9 +6,9 @@ import { CLUBS, CRON_SCHEDULES } from "./config.js";
 // Initialize database tables
 initDB();
 
-// Scrape gas prices 9am to 8pm daily
+// Scrape Sam's Club prices 9am to 8pm daily
 cron.schedule(CRON_SCHEDULES.samsClub, async () => {
-  console.log("sam's club scraping started", new Date());
+  console.log("Sam's Club scraping started", new Date());
 
   for (const clubId of Object.keys(CLUBS)) {
     const price = await fetchSamsGasPrice(clubId);
@@ -17,12 +17,12 @@ cron.schedule(CRON_SCHEDULES.samsClub, async () => {
       const unleaded = price.Unleaded || null;
       const premium = price.Premium || null;
       
-      // Save sam's club price data
+      // Save Sam's Club price data
       saveGasPrice(clubId, 'sams_club', unleaded, premium);
     }
   }
 
-  console.log("sam's club scraping ended", new Date());
+  console.log("Sam's Club scraping ended", new Date());
 });
 
 // Scrape GasBuddy prices every 3 hours

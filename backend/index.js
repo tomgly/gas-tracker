@@ -20,12 +20,12 @@ function saveCache(data) {
   fs.writeFileSync(CACHE_FILE, JSON.stringify(data, null, 2));
 }
 
-// Scrape sam's club gas prices
+// Scrape Sam's Club gas prices
 async function scrapeSamsClub(useCache) {
   const clubIds = Object.keys(CLUBS);
   let cache = loadCache();
 
-  console.log("Scraping sam's club...");
+  console.log("Scraping Sam's Club...");
   let prices = [];
 
   for (const id of clubIds) {
@@ -50,7 +50,7 @@ async function scrapeSamsClub(useCache) {
 
   cache.sams = prices;
   saveCache(cache);
-  console.log(`Saved ${prices.length} sam's club`);
+  console.log(`Saved ${prices.length} Sam's Club stations`);
 }
 
 // Scrape GasBuddy gas prices
@@ -99,7 +99,7 @@ async function main() {
   if (!skipSams) {
     await scrapeSamsClub(useCache);
   } else {
-    console.log("Skipped sam's club");
+    console.log("Skipped Sam's Club");
   }
 
   if (!skipGasBuddy) {
