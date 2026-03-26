@@ -2,23 +2,19 @@ import path from "path";
 import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "url";
 import { dirname } from "path";
+import { getNowLocal } from "./config.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const dbPath = path.resolve(__dirname, "../data/gas-tracker.db");
 const db = new DatabaseSync(dbPath);
-
-// Get current local datetime in "YYYY-MM-DD HH:MM:SS" format
-function getNowLocal() {
-  const now = new Date();
-  return now.toLocaleString("sv-SE", {timeZone: "America/New_York"}).replace("T", " ");
-}
 
 // Initialize database tables
 export function initDB() {
   db.exec(`
     CREATE TABLE IF NOT EXISTS gas_prices (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      club_id TEXT,
+      station_id TEXT,
+      source TEXT,
       unleaded REAL,
       premium REAL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -42,12 +38,11 @@ export function initDB() {
 }
 
 // Save gas price to database
-export function saveGasPrice(clubId, unleaded, premium) {
+export function saveGasPrice(stationId, source, unleaded, premium) {
   try {
     db.prepare(
-      "INSERT INTO gas_prices (club_id, unleaded, premium, created_at) VALUES (?, ?, ?, ?)"
-    ).run(clubId, unleaded, premium, getNowLocal());
-    console.log(`Gas price saved club ${clubId} U:${unleaded} P:${premium}`);
+      "INSERT INTO gas_prices (station_id, source, unleaded, premium, created_at) VALUES (?, ?, ?, ?, ?)"
+    ).run(stationId, source, unleaded, premium, getNowLocal());
   } catch (err) {
     console.error("Gas price save error:", err.message);
   }
@@ -226,20 +221,6 @@ export function getGasPriceCountLast1h() {
     return row.n;
   } catch (err) {
     console.error("Get gas price count 1h error:", err.message);
-    return 0;
-  }
-}
-
-// Get gas price count for last 90 minutes
-export function getGasPriceCountLast90m() {
-  try {
-    const row = db.prepare(`
-      SELECT COUNT(*) as n FROM gas_prices
-      WHERE created_at >= datetime('now', 'localtime', '-90 minutes')
-    `).get();
-    return row.n;
-  } catch (err) {
-    console.error("Get gas price count 90m error:", err.message);
     return 0;
   }
 }

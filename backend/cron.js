@@ -1,28 +1,39 @@
 import cron from "node-cron";
-import { fetchSamsGasPrice } from "./scraper.js";
+import { fetchSamsGasPrice, fetchGasBuddyPrices } from "./scraper.js";
 import { initDB, saveGasPrice } from "./db.js";
-
-const clubIds = [
-  "6517",
-  "6380",
-  "8136"
-];
+import { CLUBS, CRON_SCHEDULES } from "./config.js";
 
 // Initialize database tables
 initDB();
 
 // Scrape gas prices 9am to 8pm daily
-cron.schedule("0 9-20 * * *", async () => {
-  console.log("Scraping started", new Date());
+cron.schedule(CRON_SCHEDULES.samsClub, async () => {
+  console.log("sam's club scraping started", new Date());
 
-  for (const id of clubIds) {
-    const data = await fetchSamsGasPrice(id);
+  for (const clubId of Object.keys(CLUBS)) {
+    const price = await fetchSamsGasPrice(clubId);
 
-    if (data) {
-      saveGasPrice(id, data.Unleaded, data.Premium);
+    if (price) {
+      const unleaded = price.Unleaded || null;
+      const premium = price.Premium || null;
+      
+      // Save sam's club price data
+      saveGasPrice(clubId, 'sams_club', unleaded, premium);
     }
   }
 
-  await fetch("http://localhost:3002/api/health/cron-ping", { method: "POST" });
-  console.log("Scraping ended", new Date());
+  console.log("sam's club scraping ended", new Date());
+});
+
+// Scrape GasBuddy prices every 3 hours
+cron.schedule(CRON_SCHEDULES.gasBuddy, async () => {
+  console.log("GasBuddy scraping started", new Date());
+
+  const prices = await fetchGasBuddyPrices();
+
+  prices.forEach(p => {
+    saveGasPrice(p.id, 'gasbuddy', p.unleaded, p.premium);
+  });
+
+  console.log("GasBuddy scraping ended", new Date());
 });
