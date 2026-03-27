@@ -1,9 +1,7 @@
 // js/chart.js — Chart rendering with club toggle
 
 import { fmtPrice, fmtHour, fmtDay } from "./calc.js";
-import { COLORS } from "./ui.js";
-
-const TARGET_BRANDS = ["Sam's Club", "Sunoco", "BP", "Speedway", "United Dairy Farmers"];
+import { BRAND_CONFIG, COLOR_AVG } from "./ui.js";
 
 let chart = null;
 let lastHistory = null;
@@ -39,23 +37,24 @@ function buildChart(history, mode) {
   const datasets = [{
     label: "Average",
     data: history.map(h => h.Average),
-    borderColor: COLORS[0],
+    borderColor: COLOR_AVG,
     backgroundColor: gradient,
     fill: true,
     borderWidth: 2,
-    pointRadius: 2,
+    pointRadius: mode === "daily" ? 2 : 1,
     pointHoverRadius: 5,
     tension: 0.4
   }];
 
   // Target brands
-  TARGET_BRANDS.forEach((brand, i) => {
+  BRAND_CONFIG.forEach(conf => {
     datasets.push({
-      label: brand,
-      data: history.map(h => h[brand]),
-      borderColor: COLORS[(i + 1) % COLORS.length],
+      label: conf.name,
+      data: history.map(h => h[conf.name]),
+      borderColor: conf.color,
       borderWidth: 1.5,
-      pointRadius: mode === "daily" ? 4 : 0,
+      pointRadius: mode === "daily" ? 2 : 0,
+      pointHoverRadius: 4,
       tension: 0.4,
       borderDash: [5, 4],
       spanGaps: true,
@@ -113,11 +112,11 @@ function buildLegend(mode) {
   const legend = document.getElementById("chart-legend");
   legend.innerHTML = "";
 
-  const allBrands = ["Average", ...TARGET_BRANDS];
+  const allBrands = ["Average", ...BRAND_CONFIG.map(b => b.name)];
   allBrands.forEach((brand, i) => {
     const btn = document.createElement("button");
     btn.className = "legend-btn active";
-    btn.innerHTML = `<span class="legend-dot" style="background:${COLORS[i % COLORS.length]}"></span>${brand}`;
+    btn.innerHTML = `<span class="legend-dot" style="background:${BRAND_CONFIG[i % BRAND_CONFIG.length].color}"></span>${brand}`;
     legend.appendChild(btn);
   });
 }

@@ -2,9 +2,17 @@
 
 import { fmtPrice, fmtRelativeTime, isOutlier } from "./calc.js";
 
-export const COLORS = ["#f4a038", "#4e9af4", "#3ecf8e", "#c084fc", "#f471d0", "#10b981"];
+// Brands to display in the UI
+export const BRAND_CONFIG = [
+  { name: "Sam's Club", color: "#4e9af4" },
+  { name: "Sunoco", color: "#3ecf8e" },
+  { name: "BP", color: "#c084fc" },
+  { name: "Speedway", color: "#f471d0" },
+  { name: "United Dairy Farmers", color: "#10b981" }
+];
 
-const TARGET_BRANDS = ["Sam's Club", "Sunoco", "BP", "Speedway", "United Dairy Farmers"];
+// Color for avarage
+export const COLOR_AVG = "#f4a038";
 
 // Calculate average prices for target brands
 function getBrandAverages(allRows) {
@@ -23,11 +31,11 @@ function getBrandAverages(allRows) {
   });
 
   const result = {};
-  TARGET_BRANDS.forEach(brand => {
-    if (brandMap[brand]) {
-      const unleaded = brandMap[brand].filter(p => p.fuel === "unleaded").map(p => p.price);
-      const premium = brandMap[brand].filter(p => p.fuel === "premium").map(p => p.price);
-      result[brand] = {
+  BRAND_CONFIG.forEach(brand => {
+    if (brandMap[brand.name]) {
+      const unleaded = brandMap[brand.name].filter(p => p.fuel === "unleaded").map(p => p.price);
+      const premium = brandMap[brand.name].filter(p => p.fuel === "premium").map(p => p.price);
+      result[brand.name] = {
         unleaded: unleaded.length > 0 ? unleaded.reduce((s, p) => s + p, 0) / unleaded.length : null,
         premium: premium.length > 0 ? premium.reduce((s, p) => s + p, 0) / premium.length : null,
       };
@@ -76,11 +84,10 @@ export function renderLatest(data, currentFuel = "unleaded") {
   const brandAvgs = getBrandAverages(allRows);
 
   const sortKey = currentFuel === "premium" ? "premium" : "unleaded";
-  const displayBrands = TARGET_BRANDS
-    .map((name, i) => ({
-      name,
-      avg: brandAvgs[name],
-      color: COLORS[(i + 1) % COLORS.length]
+  const displayBrands = BRAND_CONFIG
+    .map(conf => ({
+      ...conf,
+      avg: brandAvgs[conf.name]
     }))
     .filter(b => b.avg && b.avg[sortKey] > 0);
 
