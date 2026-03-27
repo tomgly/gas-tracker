@@ -78,14 +78,21 @@ app.get("/api/latest", (req, res) => {
       updatedAt: r.created_at
     }));
 
+    // Calculate overall averages across all stations
     const allPrices = [...samsRows, ...gasBuddyRows];
     const avgUnleaded = allPrices.filter(p => p.unleaded != null).reduce((s, p) => s + p.unleaded, 0) / allPrices.filter(p => p.unleaded != null).length;
     const avgPremium = allPrices.filter(p => p.premium != null).reduce((s, p) => s + p.premium, 0) / allPrices.filter(p => p.premium != null).length;
 
+    // Get latest timestamp across all prices
+    const latestTimestamp = allPrices.length > 0 
+      ? allPrices.reduce((max, p) => p.created_at > max ? p.created_at : max, allPrices[0].created_at)
+      : null;
+
     res.json({
       sams,
       gasBuddy,
-      average: { unleaded: safe(avgUnleaded), premium: safe(avgPremium) }
+      average: { unleaded: safe(avgUnleaded), premium: safe(avgPremium) },
+      timestamp: latestTimestamp
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
