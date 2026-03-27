@@ -1,6 +1,6 @@
 // js/ui.js — DOM rendering
 
-import { fmtPrice, fmtUpdated } from "./calc.js";
+import { fmtPrice, fmtRelativeTime, isOutlier } from "./calc.js";
 
 export const COLORS = ["#f4a038", "#4e9af4", "#3ecf8e", "#c084fc", "#f471d0", "#10b981"];
 
@@ -12,8 +12,14 @@ function getBrandAverages(allRows) {
   allRows.forEach(r => {
     const brand = r.name;
     if (!brandMap[brand]) brandMap[brand] = [];
-    if (r.unleaded != null) brandMap[brand].push({ fuel: "unleaded", price: r.unleaded });
-    if (r.premium != null) brandMap[brand].push({ fuel: "premium", price: r.premium });
+
+    // Only include non-outlier prices
+    if (r.unleaded != null && !isOutlier(r.unleaded)) {
+      brandMap[brand].push({ fuel: "unleaded", price: r.unleaded });
+    }
+    if (r.premium != null && !isOutlier(r.premium)) {
+      brandMap[brand].push({ fuel: "premium", price: r.premium });
+    }
   });
 
   const result = {};
@@ -57,38 +63,88 @@ export function renderStats(stats, prediction, latest) {
 }
 
 // Render latest prices list
-export function renderLatest(data) {
+export function renderLatest(data, currentFuel = "unleaded") {
   const list = document.getElementById("brand-list");
-  list.innerHTML = "";
 
-  // Average row first
+  // Clear skeletons if still present
+  if (list.querySelector(".loading-skeleton")) {
+    list.innerHTML = "";
+  }
+
+  // Calculate brand averages
   const allRows = [...data.sams, ...data.gasBuddy];
   const brandAvgs = getBrandAverages(allRows);
 
+  const sortKey = currentFuel === "premium" ? "premium" : "unleaded";
+  const displayBrands = TARGET_BRANDS
+    .map((name, i) => ({
+      name,
+      avg: brandAvgs[name],
+      color: COLORS[(i + 1) % COLORS.length]
+    }))
+    .filter(b => b.avg && b.avg[sortKey] > 0);
+
+  // Sort by unleaded price
+  displayBrands.sort((a, b) => (a.avg[sortKey] || 999) - (b.avg[sortKey] || 999));
+
+  // Remove existing rows
+  const existingRows = list.querySelectorAll(".brand-row");
+
   // Target brands
-  TARGET_BRANDS.forEach((brand, i) => {
-    const avg = brandAvgs[brand];
-    if (!avg) return;
-    const color = COLORS[i % COLORS.length];
-    const row = document.createElement("div");
-    row.className = "brand-row";
-    row.innerHTML = `
-      <div class="brand-dot" style="background:${color}"></div>
-      <div class="brand-name">${brand}</div>
+  displayBrands.forEach((brandObj, index) => {
+    const isLowest = index === 0;
+    const isPremiumMode = currentFuel === "premium";
+
+    const innerHTML = `
+      <div class="brand-dot" style="background:${brandObj.color}"></div>
+      <div class="brand-name">
+        ${brandObj.name}
+        ${isLowest ? '<span class="lowest-badge">LOWEST</span>' : ''}
+      </div>
       <div class="brand-prices">
-        <span class="price-tag">
+        <span class="price-tag ${isPremiumMode ? 'muted' : ''}">
           <span class="price-type">Unleaded</span>
-          <span class="price-val">${fmtPrice(avg.unleaded)}</span>
+          <span class="price-val">${fmtPrice(brandObj.avg.unleaded)}</span>
         </span>
-        <span class="price-tag muted">
+        <span class="price-tag ${!isPremiumMode ? 'muted' : ''}">
           <span class="price-type">Premium</span>
-          <span class="price-val">${fmtPrice(avg.premium)}</span>
+          <span class="price-val">${fmtPrice(brandObj.avg.premium)}</span>
         </span>
       </div>
     `;
-    list.appendChild(row);
+
+    // Update existing row or create new one
+    if (existingRows[index]) {
+      if (existingRows[index].innerHTML !== innerHTML) {
+        existingRows[index].innerHTML = innerHTML;
+      }
+    } else {
+      const row = document.createElement("div");
+      row.className = "brand-row";
+      row.innerHTML = innerHTML;
+      list.appendChild(row);
+    }
   });
 
-  const ts = data.sams[0]?.updatedAt || data.gasBuddy[0]?.updatedAt || "";
-  document.getElementById("last-updated").textContent = fmtUpdated(ts);
+  // Remove any extra rows
+  for (let i = displayBrands.length; i < existingRows.length; i++) {
+    existingRows[i].remove();
+  }
+
+  // Show last updated time
+  const lastUpdatedEl = document.getElementById("last-updated");
+  if (data.timestamp) {
+    lastUpdatedEl.textContent = `Updated: ${fmtRelativeTime(data.timestamp)}`;
+  }
+}
+
+// Show loading skeletons while fetching data
+export function showSkeletons() {
+  const list = document.getElementById("brand-list");
+  list.innerHTML = Array(5).fill(0).map(() => `
+    <div class="loading-skeleton"></div>
+  `).join("");
+
+  const statValues = document.querySelectorAll(".stat-value");
+  statValues.forEach(el => el.textContent = "—");
 }

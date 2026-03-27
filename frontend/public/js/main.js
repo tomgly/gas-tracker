@@ -1,7 +1,7 @@
 // js/main.js — Entry point: data loading, tab switching, theme toggle
 
 import { fetchLatest, fetchStats, fetchHistory, fetchPrediction } from "./api.js";
-import { renderStats, renderLatest } from "./ui.js";
+import { showSkeletons, renderStats, renderLatest } from "./ui.js";
 import { renderChart, rebuildChart } from "./chart.js";
 
 // Parse URL parameters for view mode
@@ -31,7 +31,18 @@ function setTabUI(days, fuel) {
 }
 
 // Main data loading function
-async function load(days, fuel) {
+async function load(days, fuel, isInitial = false) {
+  const list = document.getElementById("brand-list");
+
+  // Show loading skeletons if not already present
+  const isSkeletonActive = list.querySelector(".loading-skeleton");
+  const isListEmpty = list.children.length === 0 || isSkeletonActive;
+
+  // Only show skeletons if not already active to avoid flicker on quick tab switches
+  if (isInitial || isListEmpty) {
+    showSkeletons();
+  }
+
   try {
     const [stats, latest, history, prediction] = await Promise.all([
       fetchStats(days, fuel),
@@ -40,11 +51,11 @@ async function load(days, fuel) {
       fetchPrediction(),
     ]);
     renderStats(stats, prediction, latest);
-    renderLatest(latest);
+    renderLatest(latest, fuel);
     renderChart(history);
     setTabUI(days, fuel);
   } catch (err) {
-    console.error("Load failed:", err);
+    console.error("Failed to load:", err);
   }
 }
 

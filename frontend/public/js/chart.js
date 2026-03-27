@@ -28,17 +28,24 @@ function buildChart(history, mode) {
   const fmt = mode === "daily" ? fmtDay : fmtHour;
 
   const labels = history.map(h => h.timestamp);
+  const ctx = document.getElementById("priceChart").getContext("2d");
+
+  // Gradient fill for average line
+  const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+  gradient.addColorStop(0, 'rgba(244, 160, 56, 0.2)');
+  gradient.addColorStop(1, 'rgba(244, 160, 56, 0)');
   
   // Average line
   const datasets = [{
     label: "Average",
     data: history.map(h => h.Average),
     borderColor: COLORS[0],
-    backgroundColor: "rgba(244,160,56,0.08)",
+    backgroundColor: gradient,
     fill: true,
     borderWidth: 2,
-    pointRadius: mode === "daily" ? 4 : 0,
-    tension: 0.4,
+    pointRadius: 2,
+    pointHoverRadius: 5,
+    tension: 0.4
   }];
 
   // Target brands
