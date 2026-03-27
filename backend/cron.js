@@ -1,15 +1,16 @@
 import cron from "node-cron";
 import { fetchSamsGasPrice, fetchGasBuddyPrices } from "./scraper.js";
 import { initDB, saveGasPrice } from "./db.js";
-import { CLUBS, CRON_SCHEDULES } from "./config.js";
+import { CLUBS } from "./config.js";
 
 // Initialize database tables
 initDB();
 
-// Scrape Sam's Club prices 9am to 8pm daily
-cron.schedule(CRON_SCHEDULES.samsClub, async () => {
-  console.log("Sam's Club scraping started", new Date());
+// Scrape gas prices every 3 hours
+cron.schedule("0 */3 * * *", async () => {
+  console.log("Scraping started", new Date());
 
+  // Scrape Sam's Club prices for each club
   for (const clubId of Object.keys(CLUBS)) {
     const price = await fetchSamsGasPrice(clubId);
 
@@ -22,18 +23,11 @@ cron.schedule(CRON_SCHEDULES.samsClub, async () => {
     }
   }
 
-  console.log("Sam's Club scraping ended", new Date());
-});
-
-// Scrape GasBuddy prices every 3 hours
-cron.schedule(CRON_SCHEDULES.gasBuddy, async () => {
-  console.log("GasBuddy scraping started", new Date());
-
+  // Scrape GasBuddy prices
   const prices = await fetchGasBuddyPrices();
-
   prices.forEach(p => {
     saveGasPrice(p.id, 'gasbuddy', p.unleaded, p.premium);
   });
 
-  console.log("GasBuddy scraping ended", new Date());
+  console.log("Scraping ended", new Date());
 });

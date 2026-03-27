@@ -10,11 +10,6 @@ export const CLUBS = {
   "8136": { name: "South Dayton" }
 };
 
-export const CRON_SCHEDULES = {
-  samsClub: "0 9-20 * * *",
-  gasBuddy: "0 */3 * * *"
-};
-
 export const GASBUDDY_STATIONS = {
   "001": { "name": "Sunoco", "address": "1726 S Broadway St, Dayton, OH" },
   "002": { "name": "QuikTrip", "address": "2121 S Edwin C Moses Blvd, Dayton, OH" },
@@ -48,5 +43,6 @@ export const GASBUDDY_STATIONS = {
   "030": { "name": "Sammy's", "address": "2426 S Smithville Rd, Dayton, OH" },
   "031": { "name": "Marathon", "address": "3905 N Main St, Dayton, OH" },
   "032": { "name": "United Dairy Farmers", "address": "1666 Woodman Dr, Dayton, OH" },
-  "033": { "name": "BP", "address": "4024 W 3RD ST, Dayton, OH" }
+  "033": { "name": "BP", "address": "4024 W 3RD ST, Dayton, OH" },
+  "034": { "name": "Speedway", "address": "1556 Huffman Ave, Dayton, OH" }
 };
