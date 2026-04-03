@@ -44,5 +44,10 @@ export const GASBUDDY_STATIONS = {
   "031": { "name": "Marathon", "address": "3905 N Main St, Dayton, OH" },
   "032": { "name": "United Dairy Farmers", "address": "1666 Woodman Dr, Dayton, OH" },
   "033": { "name": "BP", "address": "4024 W 3RD ST, Dayton, OH" },
-  "034": { "name": "Speedway", "address": "1556 Huffman Ave, Dayton, OH" }
+  "034": { "name": "Speedway", "address": "1556 Huffman Ave, Dayton, OH" },
+  "035": { "name": "Shell", "address": "4046 Free Pike, Dayton, OH" },
+  "036": { "name": "Speedway", "address": "121 E Stewart St, Dayton, OH" },
+  "037": { "name": "Marathon", "address": "527 S Smithville Rd, Dayton, OH" },
+  "038": { "name": "Keowee Fuel Services", "address": "1535 N Keowee St, Dayton, OH" },
+  "039": { "name": "Marathon", "address": "201 Valley St, Dayton, OH" }
 };
